@@ -12,10 +12,26 @@ export const authOptions: NextAuthOptions = {
   providers: [
     GoogleProvider({
       async profile(profile: GoogleProfile) {
+        // Create or fetch the user and return a User object
+        const { sub, email, name } = profile;
+        await ensureDbConnected();
+        
+        let user = await User.findOne({ email });
+
+        if (!user) {
+          user = new User({
+            email,
+            name,
+            role: "user",
+          });
+          await user.save();
+        }
+
         return {
-          id: profile.sub,
-          email: profile.email,
-          name: profile.name,
+          id: sub,
+          email: user.email,
+          name: user.name,
+          role: user.role,
         };
       },
       clientId: process.env.GOOGLE_CLIENT_ID,
@@ -70,8 +86,6 @@ export const authOptions: NextAuthOptions = {
           });
           await newUser.save();
         }
-        user.role = isUser.role;
-
         return true;
       }
       return true;
@@ -81,8 +95,10 @@ export const authOptions: NextAuthOptions = {
       if (user) token.role = user.role;
       return token;
     },
-    async session({ session, token }) {
-      session.user.role = token.role;
+    async session({ session, token }) { 
+      if (token.role !== undefined) {
+        session.user.role = token.role;
+      }
       return session;
     },
   },
